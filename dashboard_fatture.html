@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fatture Passive — Cantieri</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#f7f6f3; --surface:#fff; --surface2:#f0ede8; --border:#e2ddd8;
+  --text:#1c1917; --text2:#78716c; --text3:#a8a29e;
+  --accent:#2563eb; --accent-bg:#eff6ff;
+  --green:#16a34a; --green-bg:#f0fdf4;
+  --red:#dc2626; --red-bg:#fef2f2;
+  --amber:#d97706; --amber-bg:#fffbeb;
+  --radius:10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:16px;font-weight:600;letter-spacing:-0.2px}
+.topbar .meta{font-size:11px;color:var(--text3);margin-top:2px;font-family:'DM Mono',monospace}
+.topbar-right{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;transition:background .15s}
+.btn:hover{background:var(--surface2)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:#1d4ed8}
+.wrap{max-width:1440px;margin:0 auto;padding:24px 28px}
+.source-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.source-bar label{font-size:13px;font-weight:500;white-space:nowrap}
+.url-input{flex:1;min-width:260px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);outline:none}
+.url-input:focus{border-color:var(--accent)}
+.divider{font-size:12px;color:var(--text3)}
+.alert{border-radius:var(--radius);padding:12px 16px;font-size:13px;margin-bottom:16px;display:none}
+.alert-red{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+.alert-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.kpi-value{font-size:26px;font-weight:600;letter-spacing:-.5px;line-height:1}
+.kpi-value.sm{font-size:18px}
+.kpi-sub{font-size:11px;color:var(--text3);margin-top:4px;font-family:'DM Mono',monospace}
+.charts-row{display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:20px}
+@media(max-width:900px){.charts-row{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:16px;letter-spacing:-.1px}
+.pie-legend{display:flex;flex-wrap:wrap;gap:5px 12px;margin-bottom:10px}
+.pie-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.pie-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.filters-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.filters-bar input,.filters-bar select{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;outline:none}
+.filters-bar input:focus,.filters-bar select:focus{border-color:var(--accent)}
+.filters-bar input{flex:1;min-width:200px}
+.count-pill{font-size:12px;color:var(--text2);background:var(--surface2);padding:4px 10px;border-radius:20px;font-family:'DM Mono',monospace;white-space:nowrap}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody td{padding:9px 10px;font-size:13px;border-bottom:1px solid #f5f3f0;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#faf9f7}
+.amt{text-align:right;font-family:'DM Mono',monospace;font-size:12px;white-space:nowrap}
+.trunc{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nowrap{white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
+.badge-blue{background:var(--accent-bg);color:var(--accent)}
+.badge-gray{background:var(--surface2);color:var(--text3)}
+.overdue{color:var(--red);font-weight:500}
+.pager{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace}
+.pager button{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text)}
+.pager button:hover:not(:disabled){background:var(--surface2)}
+.pager button:disabled{opacity:.35;cursor:not-allowed}
+.state-box{text-align:center;padding:60px 20px;color:var(--text2)}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Fatture Passive — Cantieri</h1>
+    <div class="meta" id="meta-info">Nessun dato caricato</div>
+  </div>
+  <div class="topbar-right">
+    <button class="btn" onclick="document.getElementById('csv-file').click()">↑ Carica CSV</button>
+    <button class="btn btn-primary" onclick="loadURL()">↻ Aggiorna da Sheets</button>
+    <input type="file" id="csv-file" accept=".csv" style="display:none">
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="alert alert-red"   id="err-box"></div>
+  <div class="alert alert-amber" id="warn-box"></div>
+
+  <div class="source-bar">
+    <label>Google Sheets URL:</label>
+    <input class="url-input" id="sheets-url" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vS7CrgavtKZ1lfDpoU0_ydZ4_5LMEGELUn00y0Ve62pm0NGCS353e0ZWzyUT3M5BhKEVgq9oHX1-3Wn/pub?output=csv&gid=1367053986">
+    <span class="divider">oppure</span>
+    <button class="btn" onclick="document.getElementById('csv-file').click()">Carica file CSV locale</button>
+  </div>
+
+  <div id="root">
+    <div class="state-box">
+      <div style="font-size:36px;margin-bottom:12px">📂</div>
+      <p style="font-size:15px;font-weight:500;margin-bottom:8px">Nessun dato caricato</p>
+      <p style="color:var(--text3);margin-bottom:20px">Clicca "Aggiorna da Sheets" o carica il CSV esportato da Google Sheets</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS=['#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#65a30d','#c2410c','#0f766e'];
+let allData=[],filteredData=[],page=1,PG=30;
+let BC=null,PC=null;
+
+function num(v){
+  if(v===null||v===undefined||v==='')return 0;
+  const s=String(v).trim().replace(/\s/g,'');
+  if(s.includes(',')&&s.includes('.'))return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
+  if(s.includes(','))return parseFloat(s.replace(',','.'))||0;
+  return parseFloat(s)||0;
+}
+
+function eur(v){
+  return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(num(v));
+}
+
+function fdt(s){
+  if(!s)return'—';
+  try{const d=new Date(s);return isNaN(d)?s:d.toLocaleDateString('it-IT')}catch{return s}
+}
+
+function overdue(s){
+  if(!s)return false;
+  try{return new Date(s)<new Date()}catch{return false}
+}
+
+function rc(v){return(v||'').trim()||'Non assegnato'}
+
+function parseCSV(text){
+  const r=Papa.parse(text,{
+    header:true,skipEmptyLines:true,
+    transformHeader:h=>h.trim().toLowerCase().replace(/[\s\-]+/g,'_')
+  });
+  if(!r.data||!r.data.length)throw new Error('Nessun dato nel file.');
+  return r.data.map(row=>({...row,rc_center:rc(row['rc_center'])}));
+}
+
+async function loadURL(){
+  const url=document.getElementById('sheets-url').value.trim();
+  if(!url){showErr('URL mancante.');return}
+  setLoading('Connessione a Google Sheets...');
+  clearAlerts();
+  try{
+    const res=await fetch(url,{cache:'no-cache'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    if(!text||text.length<50)throw new Error('Risposta vuota.');
+    const rows=parseCSV(text);
+    if(rows.length<50){
+      showWarn('Google Sheets ha restituito solo '+rows.length+' righe. Se il foglio ne ha di più, re-pubblica il foglio (File → Pubblica sul web → Pubblica) oppure usa il pulsante "Carica CSV" con il file esportato.');
+    }
+    load(rows,'Sheets · '+rows.length.toLocaleString('it-IT')+' fatture · '+new Date().toLocaleTimeString('it-IT'));
+  }catch(e){
+    showErr('Errore Sheets: '+e.message);
+    showWarn('Usa il pulsante "Carica CSV" e trascina il file CSV esportato da Google Sheets per caricare tutti i dati.');
+    document.getElementById('root').innerHTML=emptyHTML();
+  }
+}
+
+document.getElementById('csv-file').addEventListener('change',function(e){
+  const f=e.target.files[0];
+  if(!f)return;
+  setLoading('Lettura "'+f.name+'"...');
+  clearAlerts();
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const rows=parseCSV(ev.target.result);
+      load(rows,'CSV locale · '+rows.length.toLocaleString('it-IT')+' fatture · '+f.name);
+    }catch(err){showErr('Errore file: '+err.message);document.getElementById('root').innerHTML=emptyHTML()}
+  };
+  reader.readAsText(f,'UTF-8');
+  this.value='';
+});
+
+function load(rows,meta){
+  allData=rows; page=1;
+  document.getElementById('meta-info').textContent=meta;
+  render();
+}
+
+function setLoading(msg){
+  document.getElementById('root').innerHTML='<div class="state-box"><div class="spinner"></div><p>'+msg+'</p></div>';
+}
+function emptyHTML(){return'<div class="state-box"><div style="font-size:36px;margin-bottom:12px">📂</div><p style="font-size:15px;font-weight:500;margin-bottom:8px">Nessun dato</p><p style="color:var(--text3)">Carica un CSV o connettiti a Sheets</p></div>'}
+function showErr(m){const b=document.getElementById('err-box');b.textContent='⚠ '+m;b.style.display='block'}
+function showWarn(m){const b=document.getElementById('warn-box');b.textContent='ℹ '+m;b.style.display='block'}
+function clearAlerts(){['err-box','warn-box'].forEach(id=>document.getElementById(id).style.display='none')}
+
+function getF(){
+  return{
+    q:(document.getElementById('fq')||{value:''}).value.toLowerCase(),
+    cc:(document.getElementById('fcc')||{value:''}).value,
+    sort:(document.getElementById('fsort')||{value:'date_desc'}).value
+  }
+}
+
+function applyF(){
+  const{q,cc,sort}=getF();
+  filteredData=allData.filter(r=>{
+    if(cc&&r.rc_center!==cc)return false;
+    if(q){const h=[r.supplier_name,r.description,r.rc_center,r.doc_id].join(' ').toLowerCase();if(!h.includes(q))return false}
+    return true;
+  });
+  filteredData.sort((a,b)=>{
+    if(sort==='date_asc') return new Date(a.date||0)-new Date(b.date||0);
+    if(sort==='amount_desc') return num(b.amount_gross)-num(a.amount_gross);
+    if(sort==='amount_asc')  return num(a.amount_gross)-num(b.amount_gross);
+    return new Date(b.date||0)-new Date(a.date||0);
+  });
+  page=1;
+}
+
+function kpi(){
+  const gross=allData.reduce((s,r)=>s+num(r.amount_gross),0);
+  const net=allData.reduce((s,r)=>s+num(r.amount_net),0);
+  const cant=new Set(allData.filter(r=>r.rc_center!=='Non assegnato').map(r=>r.rc_center)).size;
+  const forn=new Set(allData.map(r=>r.supplier_name)).size;
+  const sc=allData.filter(r=>r.next_due_date&&overdue(r.next_due_date)).length;
+  return{gross,net,cant,forn,count:allData.length,sc};
+}
+
+function barD(){
+  const m={};
+  allData.forEach(r=>{m[r.rc_center]=(m[r.rc_center]||0)+num(r.amount_gross)});
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+
+function pieD(){
+  const m={};
+  allData.forEach(r=>{const s=(r.supplier_name||'Altro').trim();m[s]=(m[s]||0)+num(r.amount_gross)});
+  const s=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  const top=s.slice(0,9);
+  const other=s.slice(9).reduce((a,x)=>a+x[1],0);
+  if(other>0)top.push(['Altri',other]);
+  return top;
+}
+
+function cantieri(){
+  return[...new Set(allData.map(r=>r.rc_center))].sort((a,b)=>{
+    if(a==='Non assegnato')return 1;
+    if(b==='Non assegnato')return -1;
+    return a.localeCompare(b,'it');
+  });
+}
+
+function render(){
+  applyF();
+  if(BC){BC.destroy();BC=null}
+  if(PC){PC.destroy();PC=null}
+
+  const k=kpi();
+  const bd=barD();
+  const pd=pieD();
+  const cl=cantieri();
+  const{q,cc,sort}=getF();
+  const pg=filteredData.slice((page-1)*PG,page*PG);
+  const tp=Math.max(1,Math.ceil(filteredData.length/PG));
+
+  document.getElementById('root').innerHTML=`
+<div class="kpis">
+  <div class="kpi"><div class="kpi-label">Fatture totali</div><div class="kpi-value">${k.count.toLocaleString('it-IT')}</div></div>
+  <div class="kpi"><div class="kpi-label">Importo lordo</div><div class="kpi-value sm">${eur(k.gross)}</div></div>
+  <div class="kpi"><div class="kpi-label">Imponibile netto</div><div class="kpi-value sm">${eur(k.net)}</div><div class="kpi-sub">IVA: ${eur(k.gross-k.net)}</div></div>
+  <div class="kpi"><div class="kpi-label">Cantieri con spesa</div><div class="kpi-value">${k.cant}</div><div class="kpi-sub">${k.forn} fornitori</div></div>
+  <div class="kpi"><div class="kpi-label">Fatture scadute</div><div class="kpi-value" style="color:${k.sc>0?'var(--red)':'var(--green)'}">${k.sc}</div></div>
+</div>
+
+<div class="charts-row">
+  <div class="card">
+    <div class="card-title">Spesa totale per cantiere (€ lordo)</div>
+    <div style="position:relative;width:100%;height:${Math.max(240,bd.length*30+60)}px">
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top fornitori per importo</div>
+    <div class="pie-legend" id="pie-legend"></div>
+    <div style="position:relative;width:100%;height:220px"><canvas id="pieChart"></canvas></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Dettaglio fatture</div>
+  <div class="filters-bar">
+    <input id="fq" type="search" placeholder="Cerca fornitore, descrizione, cantiere..." value="${q.replace(/"/g,'&quot;')}">
+    <select id="fcc">
+      <option value="">Tutti i cantieri</option>
+      ${cl.map(c=>`<option value="${c.replace(/"/g,'&quot;')}"${cc===c?' selected':''}>${c}</option>`).join('')}
+    </select>
+    <select id="fsort">
+      <option value="date_desc"${sort==='date_desc'?' selected':''}>Data ↓</option>
+      <option value="date_asc"${sort==='date_asc'?' selected':''}>Data ↑</option>
+      <option value="amount_desc"${sort==='amount_desc'?' selected':''}>Importo ↓</option>
+      <option value="amount_asc"${sort==='amount_asc'?' selected':''}>Importo ↑</option>
+    </select>
+    <span class="count-pill">${filteredData.length.toLocaleString('it-IT')} risultati</span>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th>Data</th><th>Scadenza</th><th>Fornitore</th><th>Cantiere</th>
+      <th>Descrizione</th><th style="text-align:right">Netto</th>
+      <th style="text-align:right">IVA</th><th style="text-align:right">Lordo</th>
+    </tr></thead>
+    <tbody>
+    ${pg.length===0
+      ?'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:40px">Nessuna fattura trovata</td></tr>'
+      :pg.map(r=>{
+        const ov=r.next_due_date&&overdue(r.next_due_date);
+        const na=r.rc_center==='Non assegnato';
+        return`<tr>
+          <td class="nowrap">${fdt(r.date)}</td>
+          <td class="nowrap${ov?' overdue':''}">${fdt(r.next_due_date)}</td>
+          <td class="trunc" title="${(r.supplier_name||'').replace(/"/g,'')}">${r.supplier_name||'—'}</td>
+          <td><span class="badge ${na?'badge-gray':'badge-blue'}">${r.rc_center}</span></td>
+          <td class="trunc" style="color:var(--text2)" title="${(r.description||'').replace(/"/g,'')}">${r.description||'—'}</td>
+          <td class="amt">${eur(r.amount_net)}</td>
+          <td class="amt" style="color:var(--text3)">${eur(r.amount_vat)}</td>
+          <td class="amt" style="font-weight:600">${eur(r.amount_gross)}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table></div>
+  <div class="pager">
+    <button onclick="_pp()" ${page<=1?'disabled':''}>← Prec</button>
+    <span>Pag. ${page} / ${tp}</span>
+    <button onclick="_np()" ${page>=tp?'disabled':''}>Succ →</button>
+    <span style="margin-left:auto">${((page-1)*PG+1).toLocaleString('it-IT')}–${Math.min(page*PG,filteredData.length).toLocaleString('it-IT')} di ${filteredData.length.toLocaleString('it-IT')}</span>
+  </div>
+</div>`;
+
+  document.getElementById('fq').addEventListener('input',()=>render());
+  document.getElementById('fcc').addEventListener('change',()=>render());
+  document.getElementById('fsort').addEventListener('change',()=>render());
+
+  BC=new Chart(document.getElementById('barChart'),{
+    type:'bar',
+    data:{
+      labels:bd.map(x=>x[0]),
+      datasets:[{data:bd.map(x=>Math.round(x[1])),backgroundColor:bd.map(x=>x[0]==='Non assegnato'?'#d4d0ca':'#2563eb'),borderRadius:4,borderWidth:0}]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+eur(ctx.raw)}}},
+      scales:{
+        x:{ticks:{callback:v=>eur(v),font:{size:11},color:'#a8a29e'},grid:{color:'rgba(0,0,0,0.04)'}},
+        y:{ticks:{font:{size:12},color:'#78716c'}}
+      }
+    }
+  });
+
+  document.getElementById('pie-legend').innerHTML=pd.map((x,i)=>
+    `<div class="pie-legend-item"><div class="pie-dot" style="background:${COLORS[i%COLORS.length]}"></div><span title="${x[0]}">${x[0].length>22?x[0].slice(0,22)+'…':x[0]}</span></div>`
+  ).join('');
+
+  PC=new Chart(document.getElementById('pieChart'),{
+    type:'doughnut',
+    data:{labels:pd.map(x=>x[0]),datasets:[{data:pd.map(x=>Math.round(x[1])),backgroundColor:COLORS,borderWidth:2,borderColor:'#fff'}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${eur(ctx.raw)}`}}}
+    }
+  });
+}
+
+window._pp=()=>{if(page>1){page--;render()}};
+window._np=()=>{const t=Math.ceil(filteredData.length/PG);if(page<t){page++;render()}};
+
+loadURL();
+</script>
+</body>
+</html>
